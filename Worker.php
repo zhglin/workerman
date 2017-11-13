@@ -100,7 +100,7 @@ class Worker
 
     /**
      * Number of worker processes.
-     *
+     * worker下的进程数量
      * @var int
      */
     public $count = 1;
@@ -233,7 +233,7 @@ class Worker
 
     /**
      * Daemonize.
-     *
+     * 是否以守护进程的方式执行
      * @var bool
      */
     public static $daemonize = false;
@@ -247,14 +247,14 @@ class Worker
 
     /**
      * The file to store master process PID.
-     *
+     * 进程文件
      * @var string
      */
     public static $pidFile = '';
 
     /**
      * Log file.
-     *
+     * log文件
      * @var mixed
      */
     public static $logFile = '';
@@ -303,7 +303,7 @@ class Worker
 
     /**
      * Socket name. The format is like this http://0.0.0.0:80 .
-     *
+     * ip地址 端口号 协议
      * @var string
      */
     protected $_socketName = '';
@@ -317,7 +317,7 @@ class Worker
 
     /**
      * All worker instances.
-     *
+     * 所有的worker对象实例
      * @var array
      */
     protected static $_workers = array();
@@ -376,7 +376,7 @@ class Worker
 
     /**
      * The file to store status info of current worker process.
-     *
+     * 运行状态文件
      * @var string
      */
     protected static $_statisticsFile = '';
@@ -436,7 +436,7 @@ class Worker
 
     /**
      * Graceful stop or not.
-     *
+     * 是否优雅的退出
      * @var string
      */
     protected static $_gracefulStop = false;
@@ -479,7 +479,7 @@ class Worker
 
     /**
      * Init.
-     *
+     * 创建pid文件 log文件 状态文件 worker下的pidMap 定时器处理函数
      * @return void
      */
     protected static function init()
@@ -487,7 +487,6 @@ class Worker
         // Start file.
         $backtrace        = debug_backtrace();
         static::$_startFile = $backtrace[count($backtrace) - 1]['file'];
-
 
         $unique_prefix = str_replace('/', '_', static::$_startFile);
 
@@ -509,11 +508,11 @@ class Worker
         // State.
         static::$_status = static::STATUS_STARTING;
 
-        // For statistics.
+        // For statistics. 临时目录 /tmp
         static::$_globalStatistics['start_timestamp'] = time();
         static::$_statisticsFile                      = sys_get_temp_dir() . "/$unique_prefix.status";
 
-        // Process title.
+        // Process title. ps命令显示的进程title
         static::setProcessTitle('WorkerMan: master process  start_file=' . static::$_startFile);
 
         // Init data for worker id.
@@ -598,6 +597,7 @@ class Worker
     /**
      * Init idMap.
      * return void
+     * 初始化$_idMap数组 [worker_id=>[0=>0, 1=>0, ..], ..].
      */
     protected static function initId()
     {
@@ -660,9 +660,12 @@ class Worker
     }
 
     /**
-     * Parse command.
+     * Parse command.  检查命令是否正确
      * php yourfile.php start | stop | restart | reload | status [-d]
-     *
+     * $argv[0] =>  yourfile.php
+     * $argv[1] =>  start | stop | restart | reload | status
+     * $argv[2] =>  -d
+     * todo 'stop'
      * @return void
      */
     protected static function parseCommand()
@@ -701,7 +704,8 @@ class Worker
         }
         static::log("Workerman[$start_file] $command $mode");
 
-        // Get master process PID.
+        // Get master process PID. 是否是重复启动
+        // posix_kill($master_pid, 0) 检测指定的进程PID是否存在 存在返回true, 反之返回false
         $master_pid      = is_file(static::$pidFile) ? file_get_contents(static::$pidFile) : 0;
         $master_is_alive = $master_pid && @posix_kill($master_pid, 0) && posix_getpid() != $master_pid;
         // Master is still alive?
@@ -723,6 +727,7 @@ class Worker
                 }
                 break;
             case 'status':
+                // status -d  一秒钟更新一次最新数据 否则只输出一次
                 while (1) {
                     if (is_file(static::$_statisticsFile)) {
                         @unlink(static::$_statisticsFile);
@@ -758,11 +763,11 @@ class Worker
             case 'stop':
                 if ($command2 === '-g') {
                     static::$_gracefulStop = true;
-                    $sig = SIGTERM;
+                    $sig = SIGTERM; //该信号可以被阻塞和处理. 通常用来要求程序自己正常退出
                     static::log("Workerman[$start_file] is gracefully stoping ...");
                 } else {
                     static::$_gracefulStop = false;
-                    $sig = SIGINT;
+                    $sig = SIGINT; //Ctrl-C 立即终止
                     static::log("Workerman[$start_file] is stoping ...");
                 }
                 // Send stop signal to master process.
@@ -984,7 +989,7 @@ class Worker
         if (-1 === posix_setsid()) {
             throw new Exception("setsid fail");
         }
-        // Fork again avoid SVR4 system regain the control of terminal.
+        // Fork again avoid SVR4 system regain the control of terminal. //todo
         $pid = pcntl_fork();
         if (-1 === $pid) {
             throw new Exception("fork fail");
@@ -1590,6 +1595,7 @@ class Worker
             foreach ($worker_pid_array as $worker_pid) {
                 posix_kill($worker_pid, $sig);
                 if(!static::$_gracefulStop){
+                    //SIGKILL用来立即结束程序的运行. 本信号不能被阻塞, 处理和忽略.
                     Timer::add(static::KILL_WORKER_TIMER_TIME, 'posix_kill', array($worker_pid, SIGKILL), false);
                 }
             }
@@ -1854,7 +1860,7 @@ class Worker
 
     /**
      * Log.
-     *
+     * 记录日志
      * @param string $msg
      * @return void
      */
@@ -1865,12 +1871,12 @@ class Worker
             static::safeEcho($msg);
         }
         file_put_contents((string)static::$logFile, date('Y-m-d H:i:s') . ' ' . 'pid:'
-            . (static::$_OS === 'linux' ? posix_getpid() : 1) . ' ' . $msg, FILE_APPEND | LOCK_EX);
+            . (static::$_OS === 'linux' ? posix_getpid() : 1) . ' ' . $msg, FILE_APPEND | LOCK_EX); //加锁写入 防止顺序错乱
     }
 
     /**
      * Safe Echo.
-     *
+     * posix_isatty(STDOUT) stdout是否是linux终端
      * @param $msg
      */
     public static function safeEcho($msg)
@@ -1889,14 +1895,15 @@ class Worker
     public function __construct($socket_name = '', $context_option = array())
     {
         // Save all worker instances.
+        //http://php.net/manual/zh/function.spl-object-hash.php  为对象设置一个标识
         $this->workerId                  = spl_object_hash($this);
+        //如果创建多个worker对象 $_workers中保留所有worker对象
         static::$_workers[$this->workerId] = $this;
         static::$_pidMap[$this->workerId]  = array();
 
-        // Get autoload root path.
+        // Get autoload root path. 项目的启动目录
         $backtrace                = debug_backtrace();
         $this->_autoloadRootPath = dirname($backtrace[0]['file']);
-
         // Context for socket.
         if ($socket_name) {
             $this->_socketName = $socket_name;
@@ -2098,7 +2105,7 @@ class Worker
 
     /**
      * Stop current worker instance.
-     *
+     * 子进程退出
      * @return void
      */
     public function stop()

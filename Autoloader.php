@@ -44,7 +44,9 @@ class Autoloader
      */
     public static function loadByNamespace($name)
     {
+        // 用/替换掉\
         $class_path = str_replace('\\', DIRECTORY_SEPARATOR, $name);
+        // 如果$name是在Workerman命名空间下  class_file就在当前目录 workerman的源码都在workerman命名空间下
         if (strpos($name, 'Workerman\\') === 0) {
             $class_file = __DIR__ . substr($class_path, strlen('Workerman')) . '.php';
         } else {
@@ -66,4 +68,5 @@ class Autoloader
     }
 }
 
+//注册自动加载
 spl_autoload_register('\Workerman\Autoloader::loadByNamespace');
