@@ -164,7 +164,7 @@ class Timer
 
     /**
      * Remove all timers.
-     *
+     * pcntl_alarm seconds设置为0,将不会创建alarm信号
      * @return void
      */
     public static function delAll()

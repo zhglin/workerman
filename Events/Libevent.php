@@ -14,6 +14,10 @@
 namespace Workerman\Events;
 
 use Workerman\Worker;
+/*
+ * https://www.gitbook.com/book/aceld/libevent/details
+ * https://aceld.gitbooks.io/libevent/content/
+ */
 
 /**
  * libevent eventloop

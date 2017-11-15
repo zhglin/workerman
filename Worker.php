@@ -107,14 +107,14 @@ class Worker
 
     /**
      * Unix user of processes, needs appropriate privileges (usually root).
-     *
+     * worker进程的用户
      * @var string
      */
     public $user = '';
 
     /**
      * Unix group of processes, needs appropriate privileges (usually root).
-     *
+     * worker进程的用户组
      * @var string
      */
     public $group = '';
@@ -128,7 +128,12 @@ class Worker
 
     /**
      * reuse port.
-     *
+     * SO_REUSEPORT支持多个进程或者线程绑定到同一端口，提高服务器程序的性能，解决的问题：
+     *  允许多个套接字 bind()/listen() 同一个TCP/UDP端口
+     *      每一个线程拥有自己的服务器套接字
+     *      在服务器套接字上没有了锁的竞争
+     *  内核层面实现负载均衡
+     *  安全层面，监听同一个端口的套接字只能位于同一个用户下面
      * @var bool
      */
     public $reusePort = false;
@@ -198,7 +203,7 @@ class Worker
 
     /**
      * Transport layer protocol.
-     *
+     * 传输层协议
      * @var string
      */
     public $transport = 'tcp';
@@ -261,7 +266,7 @@ class Worker
 
     /**
      * Global event loop.
-     *
+     * 使用的event模型名称
      * @var Events\EventInterface
      */
     public static $globalEvent = null;
@@ -303,7 +308,7 @@ class Worker
 
     /**
      * Socket name. The format is like this http://0.0.0.0:80 .
-     * ip地址 端口号 协议
+     * 协议(应用层 || 传输层) ip地址 端口号
      * @var string
      */
     protected $_socketName = '';
@@ -325,7 +330,7 @@ class Worker
     /**
      * All worker porcesses pid.
      * The format is like this [worker_id=>[pid=>pid, pid=>pid, ..], ..]
-     *
+     * 所有worker进程 的pid
      * @var array
      */
     protected static $_pidMap = array();
@@ -414,7 +419,7 @@ class Worker
 
     /**
      * Available event loops.
-     *
+     * 可用的event扩展
      * @var array
      */
     protected static $_availableEventLoops = array(
@@ -424,7 +429,7 @@ class Worker
 
     /**
      * PHP built-in protocols.
-     *
+     * 可用的传输层协议
      * @var array
      */
     protected static $_builtinTransports = array(
@@ -448,14 +453,14 @@ class Worker
      */
     public static function runAll()
     {
-        static::checkSapiEnv();
-        static::init();
-        static::parseCommand();
-        static::daemonize();
-        static::initWorkers();
-        static::installSignal();
-        static::saveMasterPid();
-        static::displayUI();
+        static::checkSapiEnv();     //验证环境 windows || cli
+        static::init();             //初始化信息  pid文件 log文件 status文件  $_idMap数组 定时器handle
+        static::parseCommand();     //解析验证命令行参数  并发送相应信号
+        static::daemonize();        //master进程作为守护进程执行
+        static::initWorkers();      //初始化master信息 name $_maxWorkerNameLength  $_maxSocketNameLength  user
+        static::installSignal();    //安装信号处理函数
+        static::saveMasterPid();    //把master的pid写入pid文件
+        static::displayUI();        //打印启动信息
         static::forkWorkers();
         static::resetStd();
         static::monitorWorkers();
@@ -479,7 +484,7 @@ class Worker
 
     /**
      * Init.
-     * 创建pid文件 log文件 状态文件 worker下的pidMap 定时器处理函数
+     * 创建pid文件 log文件 状态文件 worker下的pidMap 安装定时器处理函数
      * @return void
      */
     protected static function init()
@@ -524,7 +529,8 @@ class Worker
 
     /**
      * Init All worker instances.
-     *
+     * 初始化workers 设置worker的name $_maxWorkerNameLength  $_maxSocketNameLength
+     * 验证user是否合法
      * @return void
      */
     protected static function initWorkers()
@@ -567,7 +573,7 @@ class Worker
                 static::$_maxUserNameLength = $user_name_length;
             }
 
-            // Listen.
+            // Listen.todo
             if (!$worker->reusePort) {
                 $worker->listen();
             }
@@ -871,7 +877,7 @@ class Worker
 
     /**
      * Install signal handler.
-     *
+     * 注册信号处理函数
      * @return void
      */
     protected static function installSignal()
@@ -989,7 +995,7 @@ class Worker
         if (-1 === posix_setsid()) {
             throw new Exception("setsid fail");
         }
-        // Fork again avoid SVR4 system regain the control of terminal. //todo
+        // Fork again avoid SVR4 system regain the control of terminal.
         $pid = pcntl_fork();
         if (-1 === $pid) {
             throw new Exception("fork fail");
@@ -1023,7 +1029,7 @@ class Worker
 
     /**
      * Save pid.
-     *
+     * 把masterpid写入pid文件
      * @throws Exception
      */
     protected static function saveMasterPid()
@@ -1039,7 +1045,7 @@ class Worker
 
     /**
      * Get event loop name.
-     *
+     * 如果没有配置event 获取默认的
      * @return string
      */
     protected static function getEventLoopName()
@@ -1048,6 +1054,7 @@ class Worker
             return static::$eventLoopClass;
         }
 
+        //安装了 哪个扩展 就用哪个
         $loop_name = '';
         foreach (static::$_availableEventLoops as $name=>$class) {
             if (extension_loaded($name)) {
@@ -1110,7 +1117,7 @@ class Worker
 
     /**
      * Fork some worker processes.
-     *
+     * 创建worker进程
      * @return void
      */
     protected static function forkWorkersForLinux()
@@ -1118,6 +1125,7 @@ class Worker
 
         foreach (static::$_workers as $worker) {
             if (static::$_status === static::STATUS_STARTING) {
+                //master进程名
                 if (empty($worker->name)) {
                     $worker->name = $worker->getSocketName();
                 }
@@ -1279,22 +1287,31 @@ class Worker
         }
         $pid = pcntl_fork();
         // For master process.
+        // 当前master进程
         if ($pid > 0) {
             static::$_pidMap[$worker->workerId][$pid] = $pid;
             static::$_idMap[$worker->workerId][$id]   = $pid;
         } // For child processes.
+        // 新生成的worker进程
         elseif (0 === $pid) {
             if ($worker->reusePort) {
                 $worker->listen();
             }
             if (static::$_status === static::STATUS_STARTING) {
+                //worker进程 输出 错误重定向
                 static::resetStd();
             }
+
+            //不存在子进程
             static::$_pidMap  = array();
+            //保存master进程对象
             static::$_workers = array($worker->workerId => $worker);
+            //删除定时器
             Timer::delAll();
+            //设置进程title
             static::setProcessTitle('WorkerMan: worker process  ' . $worker->name . ' ' . $worker->getSocketName());
             $worker->setUserAndGroup();
+            //worker进程在master进程中的序号
             $worker->id = $id;
             $worker->run();
             $err = new Exception('event-loop exited');
@@ -1310,7 +1327,7 @@ class Worker
      *
      * @param int $worker_id
      * @param int $pid
-     *
+     * array_search 多个相同值返回首个
      * @return integer
      */
     protected static function getId($worker_id, $pid)
@@ -1320,7 +1337,7 @@ class Worker
 
     /**
      * Set unix user and group for current process.
-     *
+     * worker进程切换user group
      * @return void
      */
     public function setUserAndGroup()
@@ -1345,6 +1362,9 @@ class Worker
         }
 
         // Set uid and gid.
+        //当前用户 用户组 不一样才进行设置
+        //  posix_setgid 失败
+        //  通过posix_initgroups把gid加到$user_info['name']的附加组中
         if ($uid != posix_getuid() || $gid != posix_getgid()) {
             if (!posix_setgid($gid) || !posix_initgroups($user_info['name'], $gid) || !posix_setuid($uid)) {
                 static::log("Warning: change gid or uid fail.");
@@ -1795,7 +1815,7 @@ class Worker
 
     /**
      * Check errors when current process exited.
-     *
+     * worker进程 异常终止的信息
      * @return void
      */
     public static function checkErrors()
@@ -1907,6 +1927,8 @@ class Worker
         // Context for socket.
         if ($socket_name) {
             $this->_socketName = $socket_name;
+            //在Linux中backlog表示已完成(ESTABLISHED)且未accept的队列大小.
+            //TCP 三次握手在应用程序accept之前由内核完成. 应用程序调用accept只是获取已经完成的连接.
             if (!isset($context_option['socket']['backlog'])) {
                 $context_option['socket']['backlog'] = static::DEFAULT_BACKLOG;
             }
@@ -1933,6 +1955,7 @@ class Worker
             // Get the application layer communication protocol and listening address.
             list($scheme, $address) = explode(':', $this->_socketName, 2);
             // Check application layer protocol class.
+            //说明scheme是应用层协议
             if (!isset(static::$_builtinTransports[$scheme])) {
                 $scheme         = ucfirst($scheme);
                 $this->protocol = '\\Protocols\\' . $scheme;
@@ -1943,6 +1966,7 @@ class Worker
                     }
                 }
 
+                //传输层协议
                 if (!isset(static::$_builtinTransports[$this->transport])) {
                     throw new \Exception('Bad worker->transport ' . var_export($this->transport, true));
                 }
@@ -1950,6 +1974,7 @@ class Worker
                 $this->transport = $scheme;
             }
 
+            //最终的传输层协议
             $local_socket = static::$_builtinTransports[$this->transport] . ":" . $address;
 
             // Flag.
@@ -1962,11 +1987,13 @@ class Worker
             }
 
             // Create an Internet or Unix domain server socket.
+            // 建立链接
             $this->_mainSocket = stream_socket_server($local_socket, $errno, $errmsg, $flags, $this->_context);
             if (!$this->_mainSocket) {
                 throw new Exception($errmsg);
             }
 
+            //关闭了 ssl todo
             if ($this->transport === 'ssl') {
                 stream_socket_enable_crypto($this->_mainSocket, false);
             } elseif ($this->transport === 'unix') {
@@ -1980,16 +2007,27 @@ class Worker
             }
 
             // Try to open keepalive for tcp and disable Nagle algorithm.
+            //Nagle 算法
+            //http://wenda.workerman.net/?/question/873
+            //http://wenda.workerman.net/?/question/1476
+            /*
+             *  php提供了两种类型的socket，stream_socket 和 sockets，二者api不兼容。
+             *  stream_socket是php内置的，可以直接使用，并且api和stream 的api通用(可以调用fread fwrite...)。
+             *  sockets需要php安装sockets扩展才能使用。
+             *
+             *  stream_socket与sockets相比有个缺点，无法精确设置socket选项。当需要设置stream_socket选项时，
+             *  可以通过socket_import_stream将stream_socket转换成扩展的sockets，然后就可以通过socket_set_option设置stream_socket的socket选项了。
+             */
             if (function_exists('socket_import_stream') && static::$_builtinTransports[$this->transport] === 'tcp') {
                 $socket = socket_import_stream($this->_mainSocket);
                 @socket_set_option($socket, SOL_SOCKET, SO_KEEPALIVE, 1);
                 @socket_set_option($socket, SOL_TCP, TCP_NODELAY, 1);
             }
 
-            // Non blocking.
+            // Non blocking. 设置为非阻塞
             stream_set_blocking($this->_mainSocket, 0);
         }
-
+//todo
         $this->resumeAccept();
     }
 
@@ -2050,7 +2088,7 @@ class Worker
 
     /**
      * Run worker instance.
-     *
+     * 执行worker进程
      * @return void
      */
     public function run()
