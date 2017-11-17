@@ -123,7 +123,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * Bytes read.
-     *
+     * 读取的数据量
      * @var int
      */
     public $bytesRead = 0;
@@ -173,7 +173,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * Id recorder.
-     *
+     * 连接计数器
      * @var int
      */
     protected static $_idRecorder = 1;
@@ -194,7 +194,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * Receive buffer.
-     *
+     * 接收到的数据
      * @var string
      */
     protected $_recvBuffer = '';
@@ -215,7 +215,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * Remote address.
-     *
+     * 客户端ip
      * @var string
      */
     protected $_remoteAddress = '';
@@ -236,7 +236,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * All connection instances.
-     *
+     * 所有连接对象实例
      * @var array
      */
     public static $connections = array();
@@ -298,6 +298,7 @@ class TcpConnection extends ConnectionInterface
         if (function_exists('stream_set_read_buffer')) {
             stream_set_read_buffer($this->_socket, 0);
         }
+        //对此连接添加read事件
         Worker::$globalEvent->add($this->_socket, EventInterface::EV_READ, array($this, 'baseRead'));
         $this->maxSendBufferSize = self::$defaultMaxSendBufferSize;
         $this->_remoteAddress    = $remote_address;
@@ -609,6 +610,7 @@ class TcpConnection extends ConnectionInterface
         // If the application layer protocol has been set up.
         if ($this->protocol !== null) {
             $parser = $this->protocol;
+            // while 处理可能出现的粘包情况
             while ($this->_recvBuffer !== '' && !$this->_isPaused) {
                 // The current packet length is known.
                 if ($this->_currentPackageLength) {
@@ -620,6 +622,7 @@ class TcpConnection extends ConnectionInterface
                     // Get current package length.
                     $this->_currentPackageLength = $parser::input($this->_recvBuffer, $this);
                     // The packet length is unknown.
+                    // 接收到的数据不足一个报文
                     if ($this->_currentPackageLength === 0) {
                         break;
                     } elseif ($this->_currentPackageLength > 0 && $this->_currentPackageLength <= self::$maxPackageSize) {
@@ -638,6 +641,7 @@ class TcpConnection extends ConnectionInterface
                 // The data is enough for a packet.
                 self::$statistics['total_request']++;
                 // The current packet length is equal to the length of the buffer.
+                // 接收缓存中只有一个报文
                 if (strlen($this->_recvBuffer) === $this->_currentPackageLength) {
                     $one_request_buffer = $this->_recvBuffer;
                     $this->_recvBuffer  = '';

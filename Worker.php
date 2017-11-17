@@ -903,7 +903,7 @@ class Worker
 
     /**
      * Reinstall signal handler.
-     *
+     * worker使用event处理signal
      * @return void
      */
     protected static function reinstallSignal()
@@ -911,6 +911,7 @@ class Worker
         if (static::$_OS !== 'linux') {
             return;
         }
+        //忽略之前master设置的信号处理
         // uninstall stop signal handler
         pcntl_signal(SIGINT, SIG_IGN, false);
         // uninstall graceful stop signal handler
@@ -1064,6 +1065,7 @@ class Worker
         }
 
         if ($loop_name) {
+            //是否使用使用reactPHP
             if (interface_exists('\React\EventLoop\LoopInterface')) {
                 switch ($loop_name) {
                     case 'libevent':
@@ -2059,7 +2061,7 @@ class Worker
 
     /**
      * Resume accept new connections.
-     *
+     * todo 为啥要在accept要加read事件
      * @return void
      */
     public function resumeAccept()
@@ -2102,7 +2104,7 @@ class Worker
         // Set autoload root path.
         Autoloader::setRootPath($this->_autoloadRootPath);
 
-        // Create a global event loop.
+        // Create a global event loop. todo
         if (!static::$globalEvent) {
             $event_loop_class = static::getEventLoopName();
             static::$globalEvent = new $event_loop_class;

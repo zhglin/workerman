@@ -17,6 +17,8 @@ use Workerman\Worker;
 /*
  * https://www.gitbook.com/book/aceld/libevent/details
  * https://aceld.gitbooks.io/libevent/content/
+ *
+ * http://walkerqt.blog.51cto.com/1310630/946298
  */
 
 /**
