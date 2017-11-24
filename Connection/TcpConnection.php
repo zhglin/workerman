@@ -530,7 +530,7 @@ class TcpConnection extends ConnectionInterface
 
     /**
      * Pauses the reading of data. That is onMessage will not be emitted. Useful to throttle back an upload.
-     *
+     * 暂停读取数据   这就是onMessage不会被释放   有助于减少上传
      * @return void
      */
     public function pauseRecv()
@@ -612,7 +612,7 @@ class TcpConnection extends ConnectionInterface
             $parser = $this->protocol;
             // while 处理可能出现的粘包情况
             while ($this->_recvBuffer !== '' && !$this->_isPaused) {
-                // The current packet length is known.
+                // The current packet length is known.  定长
                 if ($this->_currentPackageLength) {
                     // Data is not enough for a package.
                     if ($this->_currentPackageLength > strlen($this->_recvBuffer)) {
@@ -626,7 +626,7 @@ class TcpConnection extends ConnectionInterface
                     if ($this->_currentPackageLength === 0) {
                         break;
                     } elseif ($this->_currentPackageLength > 0 && $this->_currentPackageLength <= self::$maxPackageSize) {
-                        // Data is not enough for a package.
+                        // Data is not enough for a package. 多余
                         if ($this->_currentPackageLength > strlen($this->_recvBuffer)) {
                             break;
                         }
