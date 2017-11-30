@@ -99,8 +99,8 @@ class Worker
     public $name = 'none';
 
     /**
-     * Number of worker processes.
-     * worker下的进程数量
+     * Number of worker processes.worker进程数
+     *
      * @var int
      */
     public $count = 1;
@@ -127,7 +127,7 @@ class Worker
     public $reloadable = true;
 
     /**
-     * reuse port.
+     * reuse port. 是否多个进程或者线程绑定到同一端口
      * SO_REUSEPORT支持多个进程或者线程绑定到同一端口，提高服务器程序的性能，解决的问题：
      *  允许多个套接字 bind()/listen() 同一个TCP/UDP端口
      *      每一个线程拥有自己的服务器套接字
@@ -139,21 +139,21 @@ class Worker
     public $reusePort = false;
 
     /**
-     * Emitted when worker processes start.
+     * Emitted when worker processes start. worker进程启动时的回调函数
      *
      * @var callback
      */
     public $onWorkerStart = null;
 
     /**
-     * Emitted when a socket connection is successfully established.
+     * Emitted when a socket connection is successfully established. 有链接建立时候的回调(accept)
      *
      * @var callback
      */
     public $onConnect = null;
 
     /**
-     * Emitted when data is received.
+     * Emitted when data is received. 链接上有数据进来的时候的回调函数
      *
      * @var callback
      */
@@ -188,7 +188,7 @@ class Worker
     public $onBufferDrain = null;
 
     /**
-     * Emitted when worker processes stoped.
+     * Emitted when worker processes stoped. worker进程正常退出的回调函数
      *
      * @var callback
      */
@@ -202,21 +202,20 @@ class Worker
     public $onWorkerReload = null;
 
     /**
-     * Transport layer protocol.
-     * 传输层协议
+     * Transport layer protocol. 传输层协议
      * @var string
      */
     public $transport = 'tcp';
 
     /**
-     * Store all connections of clients.
-     *
+     * Store all connections of clients. worker进程中的连接实例
+     * worker进程才会使用
      * @var array
      */
     public $connections = array();
 
     /**
-     * Application layer protocol.
+     * Application layer protocol. 应用层协议
      *
      * @var string
      */
@@ -230,7 +229,7 @@ class Worker
     protected $_autoloadRootPath = '';
 
     /**
-     * Pause accept new connections or not.
+     * Pause accept new connections or not.是否在listen链接上添加读事件(进行accept处理链接)
      *
      * @var string
      */
@@ -251,8 +250,8 @@ class Worker
     public static $stdoutFile = '/dev/null';
 
     /**
-     * The file to store master process PID.
-     * 进程文件
+     * The file to store master process PID. 进程文件 记录pid
+     *
      * @var string
      */
     public static $pidFile = '';
@@ -265,8 +264,7 @@ class Worker
     public static $logFile = '';
 
     /**
-     * Global event loop.
-     * 使用的event模型名称
+     * Global event loop. 保存的event模型实例
      * @var Events\EventInterface
      */
     public static $globalEvent = null;
@@ -279,28 +277,28 @@ class Worker
     public static $onMasterReload = null;
 
     /**
-     * Emitted when the master process terminated.
+     * Emitted when the master process terminated. master进程退出的回调函数
      *
      * @var callback
      */
     public static $onMasterStop = null;
 
     /**
-     * EventLoopClass
+     * EventLoopClass 使用的事件模型类名(可配置)
      *
      * @var string
      */
     public static $eventLoopClass = '';
 
     /**
-     * The PID of master process.
+     * The PID of master process. master进程的pid
      *
      * @var int
      */
     protected static $_masterPid = 0;
 
     /**
-     * Listening socket.
+     * Listening socket. 保存的监听链接实例
      *
      * @var resource
      */
@@ -314,23 +312,21 @@ class Worker
     protected $_socketName = '';
 
     /**
-     * Context of socket.
-     *
+     * Context of socket.  stream_context_create创建的资源上下文
      * @var resource
-     */
+      */
     protected $_context = null;
 
     /**
-     * All worker instances.
-     * 所有的worker对象实例
+     * All worker instances. master进程下保存所有的master进程实例  worker进程保存worker进程实例
+     *
      * @var array
      */
     protected static $_workers = array();
 
     /**
-     * All worker porcesses pid.
-     * The format is like this [worker_id=>[pid=>pid, pid=>pid, ..], ..]
-     * 所有worker进程 的pid
+     * All worker porcesses pid. 所有worker(maseter)进程下的pid [worker_id=>[pid=>pid, pid=>pid, ..], ..]
+     * The format is like this
      * @var array
      */
     protected static $_pidMap = array();
@@ -344,8 +340,8 @@ class Worker
     protected static $_pidsToRestart = array();
 
     /**
-     * Mapping from PID to worker process ID.
-     * The format is like this [worker_id=>[0=>$pid, 1=>$pid, ..], ..].
+     * Mapping from PID to worker process ID. worker进程序列 worker进程退出时依据它来重新生成 [worker_id=>[0=>$pid, 1=>$pid, ..], ..].
+     * The format is like this
      *
      * @var array
      */
@@ -380,8 +376,8 @@ class Worker
     protected static $_maxUserNameLength = 12;
 
     /**
-     * The file to store status info of current worker process.
-     * 运行状态文件
+     * The file to store status info of current worker process.记录运行状态信息的文件
+     * 进程通信
      * @var string
      */
     protected static $_statisticsFile = '';
@@ -440,34 +436,33 @@ class Worker
     );
 
     /**
-     * Graceful stop or not.
-     * 是否优雅的退出
+     * Graceful stop or not. 是否立即退出
      * @var string
      */
     protected static $_gracefulStop = false;
 
     /**
-     * Run all worker instances.
+     * Run all worker instances. 启动所有worker
      *
      * @return void
      */
     public static function runAll()
     {
         static::checkSapiEnv();     //验证环境 windows || cli
-        static::init();             //初始化信息  pid文件 log文件 status文件  $_idMap数组 定时器handle
+        static::init();             //初始化系统信息  pid文件 log文件 status文件  $_idMap数组 定时器handle
         static::parseCommand();     //解析验证命令行参数  并发送相应信号
         static::daemonize();        //master进程作为守护进程执行
         static::initWorkers();      //初始化master信息 name $_maxWorkerNameLength  $_maxSocketNameLength  user
         static::installSignal();    //安装信号处理函数
         static::saveMasterPid();    //把master的pid写入pid文件
         static::displayUI();        //打印启动信息
-        static::forkWorkers();
-        static::resetStd();
-        static::monitorWorkers();
+        static::forkWorkers();      //创建并执行worker进程 worker进程阻塞在这里 在这里退出不会执行下面的函数
+        static::resetStd();         //父进程重置标准输入输出
+        static::monitorWorkers();   //worker进程监控
     }
 
     /**
-     * Check sapi.
+     * Check sapi. 检查操作系统 以及执行方式
      *
      * @return void
      */
@@ -483,8 +478,7 @@ class Worker
     }
 
     /**
-     * Init.
-     * 创建pid文件 log文件 状态文件 worker下的pidMap 安装定时器处理函数
+     * Init. 初始化系统信息 创建pid文件 log文件 状态文件 worker下的pidMap 安装定时器处理函数
      * @return void
      */
     protected static function init()
@@ -528,9 +522,7 @@ class Worker
     }
 
     /**
-     * Init All worker instances.
-     * 初始化workers 设置worker的name $_maxWorkerNameLength  $_maxSocketNameLength
-     * 验证user是否合法
+     * Init All worker instances.初始化master 设置master的name $_maxWorkerNameLength  $_maxSocketNameLength 验证user是否合法 listen
      * @return void
      */
     protected static function initWorkers()
@@ -573,7 +565,7 @@ class Worker
                 static::$_maxUserNameLength = $user_name_length;
             }
 
-            // Listen.todo
+            // Listen. reusePort初值false 只在master进行listen 改为true就只在worker里进行listen
             if (!$worker->reusePort) {
                 $worker->listen();
             }
@@ -581,7 +573,7 @@ class Worker
     }
 
     /**
-     * Get all worker instances.
+     * Get all worker instances. 获取所有的worker信息
      *
      * @return array
      */
@@ -601,9 +593,8 @@ class Worker
     }
 
     /**
-     * Init idMap.
+     * Init idMap.初始化$_idMap数组 [worker_id=>[0=>0, 1=>0, ..], ..]. 占位
      * return void
-     * 初始化$_idMap数组 [worker_id=>[0=>0, 1=>0, ..], ..].
      */
     protected static function initId()
     {
@@ -628,7 +619,7 @@ class Worker
     }
 
     /**
-     * Display staring UI.
+     * Display staring UI. 打印启动信息
      *
      * @return void
      */
@@ -666,7 +657,7 @@ class Worker
     }
 
     /**
-     * Parse command.  检查命令是否正确
+     * Parse command.  检查管理命令 并向master进程发送信号
      * php yourfile.php start | stop | restart | reload | status [-d]
      * $argv[0] =>  yourfile.php
      * $argv[1] =>  start | stop | restart | reload | status
@@ -736,6 +727,7 @@ class Worker
                 // status -d  一秒钟更新一次最新数据 否则只输出一次
                 while (1) {
                     if (is_file(static::$_statisticsFile)) {
+                        //删掉旧的统计信息
                         @unlink(static::$_statisticsFile);
                     }
                     // Master process will send SIGUSR2 signal to all child processes.
@@ -767,13 +759,14 @@ class Worker
                 exit(0);
             case 'restart':
             case 'stop':
+                //子进程都会进行退出
                 if ($command2 === '-g') {
                     static::$_gracefulStop = true;
                     $sig = SIGTERM; //该信号可以被阻塞和处理. 通常用来要求程序自己正常退出
                     static::log("Workerman[$start_file] is gracefully stoping ...");
                 } else {
                     static::$_gracefulStop = false;
-                    $sig = SIGINT; //Ctrl-C 立即终止
+                    $sig = SIGINT; //Ctrl-C 立即终止 必须退出
                     static::log("Workerman[$start_file] is stoping ...");
                 }
                 // Send stop signal to master process.
@@ -799,6 +792,7 @@ class Worker
                     if ($command === 'stop') {
                         exit(0);
                     }
+                    //restart
                     if ($command2 === '-d') {
                         static::$daemonize = true;
                     }
@@ -876,8 +870,7 @@ class Worker
 
 
     /**
-     * Install signal handler.
-     * 注册信号处理函数
+     * Install signal handler. 注册信号处理函数
      * @return void
      */
     protected static function installSignal()
@@ -902,8 +895,7 @@ class Worker
     }
 
     /**
-     * Reinstall signal handler.
-     * worker使用event处理signal
+     * Reinstall signal handler. worker使用event处理signal
      * @return void
      */
     protected static function reinstallSignal()
@@ -937,7 +929,7 @@ class Worker
     }
 
     /**
-     * Signal handler.
+     * Signal handler. 信号处理
      *
      * @param int $signal
      */
@@ -977,7 +969,7 @@ class Worker
     }
 
     /**
-     * Run as deamon mode.
+     * Run as deamon mode. master进程以守护进程执行
      *
      * @throws Exception
      */
@@ -1006,7 +998,7 @@ class Worker
     }
 
     /**
-     * Redirect standard input and output.
+     * Redirect standard input and output. 标准的输入输出重定向到$stdoutFile
      *
      * @throws Exception
      */
@@ -1029,8 +1021,7 @@ class Worker
     }
 
     /**
-     * Save pid.
-     * 把masterpid写入pid文件
+     * Save pid. 把masterpid写入pid文件 并保留到$_masterPid中
      * @throws Exception
      */
     protected static function saveMasterPid()
@@ -1045,7 +1036,7 @@ class Worker
     }
 
     /**
-     * Get event loop name.
+     * Get event loop name.  获取event模型
      * 如果没有配置event 获取默认的
      * @return string
      */
@@ -1088,7 +1079,7 @@ class Worker
     }
 
     /**
-     * Get all pids of worker processes.
+     * Get all pids of worker processes. 获取所有worker进程的pid
      *
      * @return array
      */
@@ -1104,7 +1095,7 @@ class Worker
     }
 
     /**
-     * Fork some worker processes.
+     * Fork some worker processes. 创建worker进程
      *
      * @return void
      */
@@ -1118,16 +1109,14 @@ class Worker
     }
 
     /**
-     * Fork some worker processes.
-     * 创建worker进程
+     * Fork some worker processes.linux下创建worker进程
      * @return void
      */
     protected static function forkWorkersForLinux()
     {
-
         foreach (static::$_workers as $worker) {
             if (static::$_status === static::STATUS_STARTING) {
-                //master进程名
+                //master进程名 initWorkers里面已经把name设置成了none
                 if (empty($worker->name)) {
                     $worker->name = $worker->getSocketName();
                 }
@@ -1275,7 +1264,7 @@ class Worker
 
 
     /**
-     * Fork one worker process.
+     * Fork one worker process. linux创建worker进程并进行事件监听
      *
      * @param \Workerman\Worker $worker
      * @throws Exception
@@ -1306,7 +1295,7 @@ class Worker
 
             //不存在子进程
             static::$_pidMap  = array();
-            //保存master进程对象
+            //保存当前master进程对象
             static::$_workers = array($worker->workerId => $worker);
             //删除定时器
             Timer::delAll();
@@ -1325,8 +1314,7 @@ class Worker
     }
 
     /**
-     * Get worker id.
-     *
+     * Get worker id.从$_idMap中取出一个没有没有被创建的进程id
      * @param int $worker_id
      * @param int $pid
      * array_search 多个相同值返回首个
@@ -1338,8 +1326,7 @@ class Worker
     }
 
     /**
-     * Set unix user and group for current process.
-     * worker进程切换user group
+     * Set unix user and group for current process. worker进程切换user group
      * @return void
      */
     public function setUserAndGroup()
@@ -1375,7 +1362,7 @@ class Worker
     }
 
     /**
-     * Set process name.
+     * Set process name. 设置进程在ps命令下的标识
      *
      * @param string $title
      * @return void
@@ -1406,8 +1393,8 @@ class Worker
     }
 
     /**
-     * Monitor all child processes.
-     *
+     * Monitor all child processes. 监控worker进程 worker进程生成 master进程退出
+     * worker进程的退出会引发 worker进程的重新创建 或者 master进程退出
      * @return void
      */
     protected static function monitorWorkersForLinux()
@@ -1415,9 +1402,12 @@ class Worker
         static::$_status = static::STATUS_RUNNING;
         while (1) {
             // Calls signal handlers for pending signals.
+            //http://www.jianshu.com/p/c3fb535ecd8b
+            //http://rango.swoole.com/archives/364
             pcntl_signal_dispatch();
             // Suspends execution of the current process until a child has exited, or until a signal is delivered
             $status = 0;
+            //WUNTRACED 子进程已经退出并且其状态未报告时返回。 master进程阻塞在这里等着worker进程退出
             $pid    = pcntl_wait($status, WUNTRACED);
             // Calls signal handlers for pending signals again.
             pcntl_signal_dispatch();
@@ -1432,16 +1422,16 @@ class Worker
                             static::log("worker[" . $worker->name . ":$pid] exit with status $status");
                         }
 
-                        // For Statistics.
+                        // For Statistics. worker进程退出的统计
                         if (!isset(static::$_globalStatistics['worker_exit_info'][$worker_id][$status])) {
                             static::$_globalStatistics['worker_exit_info'][$worker_id][$status] = 0;
                         }
                         static::$_globalStatistics['worker_exit_info'][$worker_id][$status]++;
 
-                        // Clear process data.
+                        // Clear process data. master下的pid
                         unset(static::$_pidMap[$worker_id][$pid]);
 
-                        // Mark id is available.
+                        // Mark id is available. 用来重新生成worker进程 来替换退出的worker进程
                         $id                            = static::getId($worker_id, $pid);
                         static::$_idMap[$worker_id][$id] = 0;
 
@@ -1450,13 +1440,14 @@ class Worker
                 }
                 // Is still running state then fork a new worker process.
                 if (static::$_status !== static::STATUS_SHUTDOWN) {
-                    static::forkWorkers();
-                    // If reloading continue.
+                    static::forkWorkers(); //重新生成一个worker进程
+                    // If reloading continue. todo
                     if (isset(static::$_pidsToRestart[$pid])) {
                         unset(static::$_pidsToRestart[$pid]);
                         static::reload();
                     }
                 } else {
+                    //stop跟restart会设置  1431行 退出的worker进程已经从pidMap中去掉了
                     // If shutdown state and all child processes exited then master process exit.
                     if (!static::getAllWorkerPids()) {
                         static::exitAndClearAll();
@@ -1484,7 +1475,7 @@ class Worker
     }
 
     /**
-     * Exit current process.
+     * Exit current process. 退出master进程
      *
      * @return void
      */
@@ -1492,11 +1483,13 @@ class Worker
     {
         foreach (static::$_workers as $worker) {
             $socket_name = $worker->getSocketName();
+            //如果是unix域协议 删掉文件
             if ($worker->transport === 'unix' && $socket_name) {
                 list(, $address) = explode(':', $socket_name, 2);
                 @unlink($address);
             }
         }
+        //删除pid文件
         @unlink(static::$pidFile);
         static::log("Workerman[" . basename(static::$_startFile) . "] has been stopped");
         if (static::$onMasterStop) {
@@ -1617,7 +1610,7 @@ class Worker
             foreach ($worker_pid_array as $worker_pid) {
                 posix_kill($worker_pid, $sig);
                 if(!static::$_gracefulStop){
-                    //SIGKILL用来立即结束程序的运行. 本信号不能被阻塞, 处理和忽略.
+                    //SIGKILL用来立即结束程序的运行. 本信号不能被阻塞, 处理和忽略. 强制退出
                     Timer::add(static::KILL_WORKER_TIMER_TIME, 'posix_kill', array($worker_pid, SIGKILL), false);
                 }
             }
@@ -1659,7 +1652,7 @@ class Worker
     }
 
     /**
-     * Write statistics data to disk.
+     * Write statistics data to disk. 把进程运行的统计信息写入文件
      *
      * @return void
      */
@@ -1738,7 +1731,7 @@ class Worker
     }
 
     /**
-     * Write statistics data to disk.
+     * Write statistics data to disk. 把worker进程的网络相关统计信息记入文件
      *
      * @return void
      */
@@ -1919,7 +1912,7 @@ class Worker
         // Save all worker instances.
         //http://php.net/manual/zh/function.spl-object-hash.php  为对象设置一个标识
         $this->workerId                  = spl_object_hash($this);
-        //如果创建多个worker对象 $_workers中保留所有worker对象
+        //如果创建多个worker对象 $_workers中保留所有worker对象(master进程)
         static::$_workers[$this->workerId] = $this;
         static::$_pidMap[$this->workerId]  = array();
 
@@ -1934,13 +1927,14 @@ class Worker
             if (!isset($context_option['socket']['backlog'])) {
                 $context_option['socket']['backlog'] = static::DEFAULT_BACKLOG;
             }
+            //只是创建资源流的上下文
             $this->_context = stream_context_create($context_option);
         }
     }
 
 
     /**
-     * Listen.
+     * Listen. 处理协议并进行listen
      *
      * @throws Exception
      */
@@ -1957,7 +1951,7 @@ class Worker
             // Get the application layer communication protocol and listening address.
             list($scheme, $address) = explode(':', $this->_socketName, 2);
             // Check application layer protocol class.
-            //说明scheme是应用层协议
+            //说明scheme是应用层协议 否则就是传输层协议
             if (!isset(static::$_builtinTransports[$scheme])) {
                 $scheme         = ucfirst($scheme);
                 $this->protocol = '\\Protocols\\' . $scheme;
@@ -1968,7 +1962,7 @@ class Worker
                     }
                 }
 
-                //传输层协议
+                //传输层协议不合法
                 if (!isset(static::$_builtinTransports[$this->transport])) {
                     throw new \Exception('Bad worker->transport ' . var_export($this->transport, true));
                 }
@@ -1983,13 +1977,13 @@ class Worker
             $flags = $this->transport === 'udp' ? STREAM_SERVER_BIND : STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
             $errno = 0;
             $errmsg = '';
-            // SO_REUSEPORT.
+            // SO_REUSEPORT. worker进程才会执行
             if ($this->reusePort) {
                 stream_context_set_option($this->_context, 'socket', 'so_reuseport', 1);
             }
 
             // Create an Internet or Unix domain server socket.
-            // 建立链接
+            // 根据传输层建立链接 stream_socket_server 包括bind listen
             $this->_mainSocket = stream_socket_server($local_socket, $errno, $errmsg, $flags, $this->_context);
             if (!$this->_mainSocket) {
                 throw new Exception($errmsg);
@@ -1999,6 +1993,7 @@ class Worker
             if ($this->transport === 'ssl') {
                 stream_socket_enable_crypto($this->_mainSocket, false);
             } elseif ($this->transport === 'unix') {
+                //如果使用unix协议需要把socketFile的用户权限改掉 防止出现无权限的情况
                 $socketFile = substr($address, 2);
                 if ($this->user) {
                     chown($socketFile, $this->user);
@@ -2029,12 +2024,12 @@ class Worker
             // Non blocking. 设置为非阻塞
             stream_set_blocking($this->_mainSocket, 0);
         }
-//todo
+
         $this->resumeAccept();
     }
 
     /**
-     * Unlisten.
+     * Unlisten. worker进程退出时关闭监听链接
      *
      * @return void
      */
@@ -2047,7 +2042,7 @@ class Worker
     }
 
     /**
-     * Pause accept new connections.
+     * Pause accept new connections.删掉ev_read事件取消accept
      *
      * @return void
      */
@@ -2060,8 +2055,9 @@ class Worker
     }
 
     /**
-     * Resume accept new connections.
-     * todo 为啥要在accept要加read事件
+     * Resume accept new connections. 添加ev_read事件进行accept
+     * master进程不会进行accept操作 因为还没有事件模型
+     * 通过listen进行的调用没效果
      * @return void
      */
     public function resumeAccept()
@@ -2089,8 +2085,7 @@ class Worker
     }
 
     /**
-     * Run worker instance.
-     * 执行worker进程
+     * Run worker instance. 执行worker进程 处理事件模型(添加connection读事件,信号,定时器) 开始调度
      * @return void
      */
     public function run()
@@ -2104,7 +2099,7 @@ class Worker
         // Set autoload root path.
         Autoloader::setRootPath($this->_autoloadRootPath);
 
-        // Create a global event loop. todo
+        // Create a global event loop.
         if (!static::$globalEvent) {
             $event_loop_class = static::getEventLoopName();
             static::$globalEvent = new $event_loop_class;
@@ -2114,7 +2109,7 @@ class Worker
         // Reinstall signal.
         static::reinstallSignal();
 
-        // Init Timer.
+        // Init Timer. 使用event模型进行定时器功能
         Timer::init(static::$globalEvent);
 
         // Set an empty onMessage callback.
@@ -2139,13 +2134,12 @@ class Worker
             }
         }
 
-        // Main loop.
+        // Main loop.worker进程阻塞在这里
         static::$globalEvent->loop();
     }
 
     /**
-     * Stop current worker instance.
-     * 子进程退出
+     * Stop current worker instance. worker进程退出
      * @return void
      */
     public function stop()
@@ -2177,7 +2171,7 @@ class Worker
     }
 
     /**
-     * Accept a connection.
+     * Accept a connection. 接受新的链接(accept) 创建链接实例
      *
      * @param resource $socket
      * @return void

@@ -46,6 +46,9 @@ use Workerman\Worker;
  * event_assign（）的参数必须指向一个未初始化的事件 不要对已经在 event_base 中未决的事件调用 event_assign（），这可能会导致难以诊断的错误
  *
  * bufferevent 在读取或者写入了足够量的数据之后调用用户提供的回调。
+ *
+ * libevent为什么总通知accept事件(listen之后添加listenId的读事件)?
+ *      在服务器accept之前到达的数据应由服务器TCP排队,最大数据量为相应已连接套接字的的接收缓冲区大小(uninx网络编程(第4章)  listenId可读意味着可以通过accept从连接队列中取出连接进行处理
  */
 
 /**
@@ -61,7 +64,7 @@ class Libevent implements EventInterface
     protected $_eventBase = null;
 
     /**
-     * All listeners for read/write event.
+     * All listeners for read/write event. 报存所有连接的读写事件
      *
      * @var array
      */
@@ -232,6 +235,7 @@ class Libevent implements EventInterface
      */
     public function loop()
     {
+        //默认情况下,运行 event_base 直到其中没有已经注册的事件为止
         event_base_loop($this->_eventBase);
     }
 

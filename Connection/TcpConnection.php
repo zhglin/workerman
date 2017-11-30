@@ -65,14 +65,14 @@ class TcpConnection extends ConnectionInterface
     const STATUS_CLOSED = 8;
 
     /**
-     * Emitted when data is received.
+     * Emitted when data is received. 有请求进来时候的回调
      *
      * @var callback
      */
     public $onMessage = null;
 
     /**
-     * Emitted when the other end of the socket sends a FIN packet.
+     * Emitted when the other end of the socket sends a FIN packet. 链接关闭时候的回调
      *
      * @var callback
      */
@@ -100,7 +100,7 @@ class TcpConnection extends ConnectionInterface
     public $onBufferDrain = null;
 
     /**
-     * Application layer protocol.
+     * Application layer protocol. 使用的应用层协议
      * The format is like this Workerman\\Protocols\\Http.
      *
      * @var \Workerman\Protocols\ProtocolInterface
@@ -108,14 +108,14 @@ class TcpConnection extends ConnectionInterface
     public $protocol = null;
 
     /**
-     * Transport (tcp/udp/unix/ssl).
+     * Transport (tcp/udp/unix/ssl). 传输层协议
      *
      * @var string
      */
     public $transport = 'tcp';
 
     /**
-     * Which worker belong to.
+     * Which worker belong to. 归属的worker进程实例
      *
      * @var Worker
      */
@@ -158,7 +158,7 @@ class TcpConnection extends ConnectionInterface
     public $maxSendBufferSize = 1048576;
 
     /**
-     * Default send buffer size.
+     * Default send buffer size.  默认最大的发送缓冲区大小
      *
      * @var int
      */
@@ -172,8 +172,7 @@ class TcpConnection extends ConnectionInterface
     public static $maxPackageSize = 10485760;
 
     /**
-     * Id recorder.
-     * 连接计数器
+     * Id recorder. 连接计数器
      * @var int
      */
     protected static $_idRecorder = 1;
@@ -186,15 +185,14 @@ class TcpConnection extends ConnectionInterface
     protected $_socket = null;
 
     /**
-     * Send buffer.
+     * Send buffer. 发送缓冲区
      *
      * @var string
      */
     protected $_sendBuffer = '';
 
     /**
-     * Receive buffer.
-     * 接收到的数据
+     * Receive buffer. 接收缓冲区
      * @var string
      */
     protected $_recvBuffer = '';
@@ -207,15 +205,14 @@ class TcpConnection extends ConnectionInterface
     protected $_currentPackageLength = 0;
 
     /**
-     * Connection status.
+     * Connection status. 链接状态
      *
      * @var int
      */
     protected $_status = self::STATUS_ESTABLISHED;
 
     /**
-     * Remote address.
-     * 客户端ip
+     * Remote address. 客户端ip地址端口号
      * @var string
      */
     protected $_remoteAddress = '';
@@ -235,8 +232,8 @@ class TcpConnection extends ConnectionInterface
     protected $_sslHandshakeCompleted = false;
 
     /**
-     * All connection instances.
-     * 所有连接对象实例
+     * All connection instances. 所有连接对象实例
+
      * @var array
      */
     public static $connections = array();
@@ -294,7 +291,7 @@ class TcpConnection extends ConnectionInterface
         }
         $this->_socket = $socket;
         stream_set_blocking($this->_socket, 0);
-        // Compatible with hhvm
+        // Compatible with hhvm 关闭读缓冲
         if (function_exists('stream_set_read_buffer')) {
             stream_set_read_buffer($this->_socket, 0);
         }
@@ -306,7 +303,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get status.
+     * Get status. 链接状态
      *
      * @param bool $raw_output
      *
@@ -406,7 +403,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get remote IP.
+     * Get remote IP. 客户端ip
      *
      * @return string
      */
@@ -420,7 +417,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get remote port.
+     * Get remote port. 客户端端口号
      *
      * @return int
      */
@@ -433,7 +430,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get remote address.
+     * Get remote address. 客户端ip端口号
      *
      * @return string
      */
@@ -443,7 +440,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get local IP.
+     * Get local IP.获取当前链接的服务器端ip
      *
      * @return string
      */
@@ -458,7 +455,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get local port.
+     * Get local port.获取当前链接的服务器端端口号
      *
      * @return int
      */
@@ -473,7 +470,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get local address.
+     * Get local address.获取本地套接字名称
      *
      * @return string
      */
@@ -483,7 +480,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get send buffer queue size.
+     * Get send buffer queue size. 发送缓冲区长度
      *
      * @return integer
      */
@@ -493,7 +490,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Get recv buffer queue size.
+     * Get recv buffer queue size.接受缓冲区长度
      *
      * @return integer
      */
@@ -554,7 +551,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Base read handler.
+     * Base read handler. 读取请求
      *
      * @param resource $socket
      * @param bool $check_eof
@@ -562,7 +559,7 @@ class TcpConnection extends ConnectionInterface
      */
     public function baseRead($socket, $check_eof = true)
     {
-        // SSL handshake.
+        // SSL handshake. todo
         if ($this->transport === 'ssl' && $this->_sslHandshakeCompleted !== true) {
             $ret = stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_SSLv2_SERVER |
                 STREAM_CRYPTO_METHOD_SSLv3_SERVER | STREAM_CRYPTO_METHOD_SSLv23_SERVER);
@@ -596,7 +593,7 @@ class TcpConnection extends ConnectionInterface
 
         $buffer = @fread($socket, self::READ_BUFFER_SIZE);
 
-        // Check connection closed.
+        // Check connection closed. 客户端关闭连接
         if ($buffer === '' || $buffer === false) {
             if ($check_eof && (feof($socket) || !is_resource($socket) || $buffer === false)) {
                 $this->destroy();
@@ -845,13 +842,13 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Destroy connection.
+     * Destroy connection. 关闭连接
      *
      * @return void
      */
     public function destroy()
     {
-        // Avoid repeated calls.
+        // Avoid repeated calls. 可能会被restart stop 信号中断 导致重复进入
         if ($this->_status === self::STATUS_CLOSED) {
             return;
         }
@@ -861,12 +858,14 @@ class TcpConnection extends ConnectionInterface
         // Close socket.
         @fclose($this->_socket);
         // Remove from worker->connections.
+        // 从worker进程中去掉连接
         if ($this->worker) {
             unset($this->worker->connections[$this->_id]);
         }
         unset(static::$connections[$this->_id]);
         $this->_status = self::STATUS_CLOSED;
         // Try to emit onClose callback.
+        //下面的回调只会被执行一次 正常的destroy 或者 信号触发
         if ($this->onClose) {
             try {
                 call_user_func($this->onClose, $this);

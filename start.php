@@ -8,6 +8,7 @@ $ws_worker = new Worker("websocket://0.0.0.0:2346");
 
 // 启动4个进程对外提供服务
 $ws_worker->count = 4;
+Worker::$daemonize = true;
 
 // 当收到客户端发来的数据后返回hello $data给客户端
 $ws_worker->onMessage = function($connection, $data)
