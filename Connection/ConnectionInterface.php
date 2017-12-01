@@ -25,7 +25,7 @@ abstract class  ConnectionInterface
      */
     public static $statistics = array(
         'connection_count' => 0, //接受的连接总数
-        'total_request'    => 0,
+        'total_request'    => 0, //处理的请求数
         'throw_exception'  => 0,
         'send_fail'        => 0,
     );

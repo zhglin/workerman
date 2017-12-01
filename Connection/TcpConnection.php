@@ -122,8 +122,7 @@ class TcpConnection extends ConnectionInterface
     public $worker = null;
 
     /**
-     * Bytes read.
-     * 读取的数据量
+     * Bytes read. 当前连接读取的数据量总量
      * @var int
      */
     public $bytesRead = 0;
@@ -165,7 +164,7 @@ class TcpConnection extends ConnectionInterface
     public static $defaultMaxSendBufferSize = 1048576;
 
     /**
-     * Maximum acceptable packet size.
+     * Maximum acceptable packet size. 最大报文长度
      *
      * @var int
      */
@@ -218,7 +217,7 @@ class TcpConnection extends ConnectionInterface
     protected $_remoteAddress = '';
 
     /**
-     * Is paused.
+     * Is paused. 是否暂停读取数据
      *
      * @var bool
      */
@@ -318,7 +317,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Sends data on the connection.
+     * Sends data on the connection.  发送数据(服务器端要主动调用)
      *
      * @param string $send_buffer
      * @param bool  $raw
@@ -526,7 +525,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Pauses the reading of data. That is onMessage will not be emitted. Useful to throttle back an upload.
+     * Pauses the reading of data. That is onMessage will not be emitted. Useful to throttle back an upload. 暂停读取操作
      * 暂停读取数据   这就是onMessage不会被释放   有助于减少上传
      * @return void
      */
@@ -537,7 +536,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Resumes reading after a call to pauseRecv.
+     * Resumes reading after a call to pauseRecv. 恢复读取
      *
      * @return void
      */
@@ -551,7 +550,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Base read handler. 读取请求
+     * Base read handler. 读取请求(事件模型回调)
      *
      * @param resource $socket
      * @param bool $check_eof
@@ -593,7 +592,8 @@ class TcpConnection extends ConnectionInterface
 
         $buffer = @fread($socket, self::READ_BUFFER_SIZE);
 
-        // Check connection closed. 客户端关闭连接
+        // Check connection closed.
+        // 客户端关闭连接
         if ($buffer === '' || $buffer === false) {
             if ($check_eof && (feof($socket) || !is_resource($socket) || $buffer === false)) {
                 $this->destroy();
@@ -605,11 +605,12 @@ class TcpConnection extends ConnectionInterface
         }
 
         // If the application layer protocol has been set up.
+        // 有应用层协议
         if ($this->protocol !== null) {
             $parser = $this->protocol;
-            // while 处理可能出现的粘包情况
+            // while 处理可能出现的粘包情况 定长 间隔字符 报文长度
             while ($this->_recvBuffer !== '' && !$this->_isPaused) {
-                // The current packet length is known.  定长
+                // The current packet length is known. 报文中有长度字段 但是数据不足
                 if ($this->_currentPackageLength) {
                     // Data is not enough for a package.
                     if ($this->_currentPackageLength > strlen($this->_recvBuffer)) {
@@ -623,7 +624,7 @@ class TcpConnection extends ConnectionInterface
                     if ($this->_currentPackageLength === 0) {
                         break;
                     } elseif ($this->_currentPackageLength > 0 && $this->_currentPackageLength <= self::$maxPackageSize) {
-                        // Data is not enough for a package. 多余
+                        // Data is not enough for a package. 可能报文里面有长度字段并且大于接收缓冲区
                         if ($this->_currentPackageLength > strlen($this->_recvBuffer)) {
                             break;
                         }
@@ -638,23 +639,25 @@ class TcpConnection extends ConnectionInterface
                 // The data is enough for a packet.
                 self::$statistics['total_request']++;
                 // The current packet length is equal to the length of the buffer.
-                // 接收缓存中只有一个报文
+                // 接收缓冲区中只有一个报文
                 if (strlen($this->_recvBuffer) === $this->_currentPackageLength) {
                     $one_request_buffer = $this->_recvBuffer;
                     $this->_recvBuffer  = '';
                 } else {
                     // Get a full package from the buffer.
+                    // 如果接受缓冲区中数据 大于一个请求长度 从缓冲区只取出部分数据
                     $one_request_buffer = substr($this->_recvBuffer, 0, $this->_currentPackageLength);
                     // Remove the current package from the receive buffer.
                     $this->_recvBuffer = substr($this->_recvBuffer, $this->_currentPackageLength);
                 }
                 // Reset the current packet length to 0.
+                // 重置请求长度为0
                 $this->_currentPackageLength = 0;
                 if (!$this->onMessage) {
                     continue;
                 }
                 try {
-                    // Decode request buffer before Emitting onMessage callback.
+                    // Decode request buffer before Emitting onMessage callback. 回调
                     call_user_func($this->onMessage, $this, $parser::decode($one_request_buffer, $this));
                 } catch (\Exception $e) {
                     Worker::log($e);
@@ -672,6 +675,7 @@ class TcpConnection extends ConnectionInterface
         }
 
         // Applications protocol is not set.
+        // 没有应用层协议 自己处理拆包 封包
         self::$statistics['total_request']++;
         if (!$this->onMessage) {
             $this->_recvBuffer = '';
@@ -752,7 +756,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Remove $length of data from receive buffer.
+     * Remove $length of data from receive buffer. 从接受缓冲区截取一定的数据长度
      *
      * @param int $length
      * @return void
@@ -848,7 +852,7 @@ class TcpConnection extends ConnectionInterface
      */
     public function destroy()
     {
-        // Avoid repeated calls. 可能会被restart stop 信号中断 导致重复进入
+        // Avoid repeated calls. 可能会被restart stop 信号中断 导致重复进入 todo
         if ($this->_status === self::STATUS_CLOSED) {
             return;
         }
@@ -865,7 +869,7 @@ class TcpConnection extends ConnectionInterface
         unset(static::$connections[$this->_id]);
         $this->_status = self::STATUS_CLOSED;
         // Try to emit onClose callback.
-        //下面的回调只会被执行一次 正常的destroy 或者 信号触发
+        //下面的回调只会被执行一次 正常的destroy 或者 信号触发 todo?
         if ($this->onClose) {
             try {
                 call_user_func($this->onClose, $this);
