@@ -79,21 +79,21 @@ class TcpConnection extends ConnectionInterface
     public $onClose = null;
 
     /**
-     * Emitted when an error occurs with connection.
+     * Emitted when an error occurs with connection. 产生错误的回调函数
      *
      * @var callback
      */
     public $onError = null;
 
     /**
-     * Emitted when the send buffer becomes full.
+     * Emitted when the send buffer becomes full. 发送缓冲区满的回调函数
      *
      * @var callback
      */
     public $onBufferFull = null;
 
     /**
-     * Emitted when the send buffer becomes empty.
+     * Emitted when the send buffer becomes empty. 可写事件中一次发送所有发送缓冲区中的数据
      *
      * @var callback
      */
@@ -128,7 +128,7 @@ class TcpConnection extends ConnectionInterface
     public $bytesRead = 0;
 
     /**
-     * Bytes written.
+     * Bytes written. 已发送的数据量
      *
      * @var int
      */
@@ -231,7 +231,7 @@ class TcpConnection extends ConnectionInterface
     protected $_sslHandshakeCompleted = false;
 
     /**
-     * All connection instances. 所有连接对象实例
+     * All connection instances. 所有已连接对象实例
 
      * @var array
      */
@@ -245,9 +245,9 @@ class TcpConnection extends ConnectionInterface
     public static $_statusToString = array(
         self::STATUS_INITIAL     => 'INITIAL',
         self::STATUS_CONNECTING  => 'CONNECTING',
-        self::STATUS_ESTABLISHED => 'ESTABLISHED',
-        self::STATUS_CLOSING     => 'CLOSING',
-        self::STATUS_CLOSED      => 'CLOSED',
+        self::STATUS_ESTABLISHED => 'ESTABLISHED', //accept之后默认的状态
+        self::STATUS_CLOSING     => 'CLOSING', //主动调用close
+        self::STATUS_CLOSED      => 'CLOSED', //主动调用destroy  baseWrite回调
     );
 
 
@@ -325,11 +325,13 @@ class TcpConnection extends ConnectionInterface
      */
     public function send($send_buffer, $raw = false)
     {
+        //是否已经被关闭 比如stop restart 主动调用close(); 被关闭的连接不能再发送数据
         if ($this->_status === self::STATUS_CLOSING || $this->_status === self::STATUS_CLOSED) {
             return false;
         }
 
         // Try to call protocol::encode($send_buffer) before sending.
+        // 发送之前是否需要应用层进行编码
         if (false === $raw && $this->protocol !== null) {
             $parser      = $this->protocol;
             $send_buffer = $parser::encode($send_buffer, $this);
@@ -338,6 +340,7 @@ class TcpConnection extends ConnectionInterface
             }
         }
 
+        // ssl todo
         if ($this->_status !== self::STATUS_ESTABLISHED ||
             ($this->transport === 'ssl' && $this->_sslHandshakeCompleted !== true)
         ) {
@@ -354,6 +357,8 @@ class TcpConnection extends ConnectionInterface
 
 
         // Attempt to send data directly.
+        // 如果发送缓冲区没有数据 就直接发送 如果数据太大发送不完就把剩下的数据放入发送缓冲区
+        // 第一次写入时_sendBuffer==''
         if ($this->_sendBuffer === '') {
             $len = @fwrite($this->_socket, $send_buffer, 8192);
             // send successful.
@@ -366,7 +371,7 @@ class TcpConnection extends ConnectionInterface
                 $this->_sendBuffer = substr($send_buffer, $len);
                 $this->bytesWritten += $len;
             } else {
-                // Connection closed?
+                // Connection closed? 客户端异常关闭 或者 tcp发送缓冲区已满 写入不进去
                 if (!is_resource($this->_socket) || feof($this->_socket)) {
                     self::$statistics['send_fail']++;
                     if ($this->onError) {
@@ -385,6 +390,7 @@ class TcpConnection extends ConnectionInterface
                 }
                 $this->_sendBuffer = $send_buffer;
             }
+            //数据写不完 添加可写事件
             Worker::$globalEvent->add($this->_socket, EventInterface::EV_WRITE, array($this, 'baseWrite'));
             // Check if the send buffer will be full.
             $this->checkBufferWillFull();
@@ -695,8 +701,10 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Base write handler.
-     *
+     * Base write handler. 可写事件回调
+     * 写入数据长度正好与_sendBuffer长度一样 去掉可写事件 调用onBufferDrain 如果_status=STATUS_CLOSING就关闭链接
+     * >0未发送完_sendBuffer中的数据 去掉_sendBuffer中的数据
+     * <0出错 客户端崩溃 发送不了关闭报文
      * @return void|bool
      */
     public function baseWrite()
@@ -767,7 +775,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Close connection.
+     * Close connection. 关闭链接 如果发送缓冲区有还有数据 就发送完数据再关闭
      *
      * @param mixed $data
      * @param bool $raw
@@ -778,6 +786,7 @@ class TcpConnection extends ConnectionInterface
         if ($this->_status === self::STATUS_CLOSING || $this->_status === self::STATUS_CLOSED) {
             return;
         } else {
+            //应用层发送关闭请求
             if ($data !== null) {
                 $this->send($data, $raw);
             }
@@ -799,7 +808,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Check whether the send buffer will be full.
+     * Check whether the send buffer will be full. 加上此次发送的数据 发送缓冲区是否已满 onBufferFull
      *
      * @return void
      */
@@ -821,7 +830,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Whether send buffer is full.
+     * Whether send buffer is full. 发送缓冲区已经满了 不能发送当前数据 onError
      *
      * @return bool
      */
@@ -846,7 +855,7 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Destroy connection. 关闭连接
+     * Destroy connection. 关闭连接(丢弃发送缓冲区数据直接关闭)
      *
      * @return void
      */
@@ -862,7 +871,7 @@ class TcpConnection extends ConnectionInterface
         // Close socket.
         @fclose($this->_socket);
         // Remove from worker->connections.
-        // 从worker进程中去掉连接
+        // 从worker进程中去掉保存的连接
         if ($this->worker) {
             unset($this->worker->connections[$this->_id]);
         }
@@ -900,7 +909,9 @@ class TcpConnection extends ConnectionInterface
     }
 
     /**
-     * Destruct.
+     * Destruct. 关闭链接时候记录剩余的连接数
+     * 相当于分页 关闭了一页就记录一次log
+     * 如果当前worker进程中的连接关闭完了就退出 重启一个worker
      *
      * @return void
      */

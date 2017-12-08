@@ -1,4 +1,5 @@
 <?php
+//Worker对象中的static::$_workers变量中保存多个master信息
 use Workerman\Worker;
 require_once 'Autoloader.php';
 require_once 'vendor/autoload.php';

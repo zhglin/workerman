@@ -120,7 +120,7 @@ class Worker
     public $group = '';
 
     /**
-     * reloadable.
+     * reloadable. worker进程能否被重启
      *
      * @var bool
      */
@@ -195,7 +195,7 @@ class Worker
     public $onWorkerStop = null;
 
     /**
-     * Emitted when worker processes get reload signal.
+     * Emitted when worker processes get reload signal. worker进程重启的回调函数
      *
      * @var callback
      */
@@ -257,8 +257,7 @@ class Worker
     public static $pidFile = '';
 
     /**
-     * Log file.
-     * log文件
+     * Log file. 日志文件
      * @var mixed
      */
     public static $logFile = '';
@@ -270,7 +269,7 @@ class Worker
     public static $globalEvent = null;
 
     /**
-     * Emitted when the master process get reload signal.
+     * Emitted when the master process get reload signal. 重启(reload)的回调函数
      *
      * @var callback
      */
@@ -325,14 +324,14 @@ class Worker
     protected static $_workers = array();
 
     /**
-     * All worker porcesses pid. 所有worker(maseter)进程下的pid [worker_id=>[pid=>pid, pid=>pid, ..], ..]
+     * All worker porcesses pid. 所有worker(master)进程下的pid [worker_id=>[pid=>pid, pid=>pid, ..], ..]  worker进程中为空
      * The format is like this
      * @var array
      */
     protected static $_pidMap = array();
 
     /**
-     * All worker processes waiting for restart.
+     * All worker processes waiting for restart. 需要重启的worker进程(所有的 多个master)
      * The format is like this [pid=>pid, pid=>pid].
      *
      * @var array
@@ -662,7 +661,6 @@ class Worker
      * $argv[0] =>  yourfile.php
      * $argv[1] =>  start | stop | restart | reload | status
      * $argv[2] =>  -d
-     * todo 'stop'
      * @return void
      */
     protected static function parseCommand()
@@ -759,7 +757,10 @@ class Worker
                 exit(0);
             case 'restart':
             case 'stop':
-                //子进程都会进行退出
+                //  子进程都会进行退出
+                //  worker进程 -g 优雅退出  tcpConnection的__destruct控制退出 服务器主动关闭掉所有的连接之后才会进行退出
+                //                非优雅    收到信号后 就执行退出操作 但是会将每个连接的发送缓冲区数据发送完毕
+                //  master进程 在 monitorWorkersForLinux 中等待worker进程全部退出后才退出
                 if ($command2 === '-g') {
                     static::$_gracefulStop = true;
                     $sig = SIGTERM; //该信号可以被阻塞和处理. 通常用来要求程序自己正常退出
@@ -778,12 +779,12 @@ class Worker
                 while (1) {
                     $master_is_alive = $master_pid && posix_kill($master_pid, 0);
                     if ($master_is_alive) {
-                        // Timeout?
+                        // Timeout? 非优雅退出超时
                         if (!static::$_gracefulStop && time() - $start_time >= $timeout) {
                             static::log("Workerman[$start_file] stop fail");
                             exit;
                         }
-                        // Waiting amoment.
+                        // Waiting amoment. 优雅退出一直等待
                         usleep(10000);
                         continue;
                     }
@@ -800,6 +801,7 @@ class Worker
                 }
                 break;
             case 'reload':
+                //重启worker进程
                 if($command2 === '-g'){
                     $sig = SIGQUIT;
                 }else{
@@ -1295,7 +1297,7 @@ class Worker
 
             //不存在子进程
             static::$_pidMap  = array();
-            //保存当前master进程对象
+            //保存当前worker进程对象
             static::$_workers = array($worker->workerId => $worker);
             //删除定时器
             Timer::delAll();
@@ -1441,13 +1443,13 @@ class Worker
                 // Is still running state then fork a new worker process.
                 if (static::$_status !== static::STATUS_SHUTDOWN) {
                     static::forkWorkers(); //重新生成一个worker进程
-                    // If reloading continue. todo
+                    // If reloading continue. 重启
                     if (isset(static::$_pidsToRestart[$pid])) {
                         unset(static::$_pidsToRestart[$pid]);
                         static::reload();
                     }
                 } else {
-                    //stop跟restart会设置  1431行 退出的worker进程已经从pidMap中去掉了
+                    //stop跟restart会设置  1435行 退出的worker进程已经从pidMap中去掉了
                     // If shutdown state and all child processes exited then master process exit.
                     if (!static::getAllWorkerPids()) {
                         static::exitAndClearAll();
@@ -1455,6 +1457,7 @@ class Worker
                 }
             } else {
                 // If shutdown state and all child processes exited then master process exit.
+                // 不存在子进程返回-1
                 if (static::$_status === static::STATUS_SHUTDOWN && !static::getAllWorkerPids()) {
                     static::exitAndClearAll();
                 }
@@ -1499,15 +1502,16 @@ class Worker
     }
 
     /**
-     * Execute reload.
-     *
+     * Execute reload. 重启worker进程
+     * master 找到可以被重启的所有worker进程 重启一个  monitorWorkersForLinux重启下一个 一直到$_pidsToRestart没有需要重启的worker进程
+     * worker reloadable如果为true  就stopAll 否则只是回调onWorkerReload
      * @return void
      */
     protected static function reload()
     {
         // For master process.
         if (static::$_masterPid === posix_getpid()) {
-            // Set reloading state.
+            // Set reloading state.static::$_status !== static::STATUS_SHUTDOWN 可能stop restart关闭不及时
             if (static::$_status !== static::STATUS_RELOADING && static::$_status !== static::STATUS_SHUTDOWN) {
                 static::log("Workerman[" . basename(static::$_startFile) . "] reloading");
                 static::$_status = static::STATUS_RELOADING;
@@ -1533,6 +1537,7 @@ class Worker
             }
 
             // Send reload signal to all child processes.
+            // 多个master进程 可以进行重启的master进程下的worker进程
             $reloadable_pid_array = array();
             foreach (static::$_pidMap as $worker_id => $worker_pid_array) {
                 $worker = static::$_workers[$worker_id];
@@ -1541,6 +1546,7 @@ class Worker
                         $reloadable_pid_array[$pid] = $pid;
                     }
                 } else {
+                    //这里会重复给worker进程发
                     foreach ($worker_pid_array as $pid) {
                         // Send reload signal to a worker process which reloadable is false.
                         posix_kill($pid, $sig);
@@ -1548,7 +1554,7 @@ class Worker
                 }
             }
 
-            // Get all pids that are waiting reload.
+            // Get all pids that are waiting reload. 可以被重启的worker进程
             static::$_pidsToRestart = array_intersect(static::$_pidsToRestart, $reloadable_pid_array);
 
             // Reload complete.
@@ -1558,7 +1564,7 @@ class Worker
                 }
                 return;
             }
-            // Continue reload.
+            // Continue reload. 一次重启一个
             $one_worker_pid = current(static::$_pidsToRestart);
             // Send reload signal to a worker process.
             posix_kill($one_worker_pid, $sig);
@@ -1591,7 +1597,7 @@ class Worker
 
     /**
      * Stop.
-     *
+     * master进程 monitorWorkersForLinux 中等待worker进程全部退出后才退出
      * @return void
      */
     public static function stopAll()
@@ -1609,6 +1615,7 @@ class Worker
             }
             foreach ($worker_pid_array as $worker_pid) {
                 posix_kill($worker_pid, $sig);
+                //非优雅退出  防止链接一直不可写 直接发送kill
                 if(!static::$_gracefulStop){
                     //SIGKILL用来立即结束程序的运行. 本信号不能被阻塞, 处理和忽略. 强制退出
                     Timer::add(static::KILL_WORKER_TIMER_TIME, 'posix_kill', array($worker_pid, SIGKILL), false);
@@ -1624,6 +1631,7 @@ class Worker
             foreach (static::$_workers as $worker) {
                 $worker->stop();
             }
+            //ConnectionInterface::$statistics['connection_count'] <= 0 这是防止当前worker中已经没有连接了 优雅关闭无法进行
             if (!static::$_gracefulStop || ConnectionInterface::$statistics['connection_count'] <= 0) {
                 static::$globalEvent->destroy();
                 exit(0);
@@ -1809,7 +1817,7 @@ class Worker
     }
 
     /**
-     * Check errors when current process exited.
+     * Check errors when current process exited. 进程关闭时的回调函数 异常退出记录信息
      * worker进程 异常终止的信息
      * @return void
      */
@@ -1831,7 +1839,7 @@ class Worker
     }
 
     /**
-     * Get error message by error code.
+     * Get error message by error code. error级别对应的字符串
      *
      * @param integer $type
      * @return string
@@ -1874,8 +1882,7 @@ class Worker
     }
 
     /**
-     * Log.
-     * 记录日志
+     * Log.记录日志
      * @param string $msg
      * @return void
      */
@@ -1890,7 +1897,7 @@ class Worker
     }
 
     /**
-     * Safe Echo.
+     * Safe Echo. 只写到终端中
      * posix_isatty(STDOUT) stdout是否是linux终端
      * @param $msg
      */
@@ -1989,7 +1996,9 @@ class Worker
                 throw new Exception($errmsg);
             }
 
-            //关闭了 ssl todo
+            //关闭了 ssl __controller中创建的_mainSocket开启了ssl 因为_mainSocket是监听链接 在这里关闭ssl
+            //
+            //http://www.kuqin.com/php5_doc/function.stream-socket-server.html
             if ($this->transport === 'ssl') {
                 stream_socket_enable_crypto($this->_mainSocket, false);
             } elseif ($this->transport === 'unix') {
@@ -2157,8 +2166,10 @@ class Worker
             }
         }
         // Remove listener for server socket.
+        // 关闭监听套接字
         $this->unlisten();
         // Close all connections for the worker.
+        // 会发送完缓冲区中的数据才进行关闭
         if (!static::$_gracefulStop) {
             foreach ($this->connections as $connection) {
                 $connection->close();
