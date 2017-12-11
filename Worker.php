@@ -1406,11 +1406,16 @@ class Worker
             // Calls signal handlers for pending signals.
             //http://www.jianshu.com/p/c3fb535ecd8b
             //http://rango.swoole.com/archives/364
+            echo  'a';
             pcntl_signal_dispatch();
+            echo 'b';
             // Suspends execution of the current process until a child has exited, or until a signal is delivered
             $status = 0;
             //WUNTRACED 子进程已经退出并且其状态未报告时返回。 master进程阻塞在这里等着worker进程退出
+            //wait函数刮起当前进程的执行直到一个子进程退出或接收到一个信号要求中断当前进程或调用一个信号处理函数。
             $pid    = pcntl_wait($status, WUNTRACED);
+            echo $pid;
+            echo 'c';
             // Calls signal handlers for pending signals again.
             pcntl_signal_dispatch();
             // If a child has already exited.
@@ -1457,7 +1462,7 @@ class Worker
                 }
             } else {
                 // If shutdown state and all child processes exited then master process exit.
-                // 不存在子进程返回-1
+                // 不存在子进程返回-1 || 信号中断返回-1
                 if (static::$_status === static::STATUS_SHUTDOWN && !static::getAllWorkerPids()) {
                     static::exitAndClearAll();
                 }
