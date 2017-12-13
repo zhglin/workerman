@@ -126,7 +126,8 @@ class Libevent implements EventInterface
                 }
 
                 $time_interval = $fd * 1000000;
-                if (!event_add($event, $time_interval)) {
+                //超时触发
+            if (!event_add($event, $time_interval)) {
                     return false;
                 }
                 $this->_eventTimer[$timer_id] = array($func, (array)$args, $event, $flag, $time_interval);
@@ -202,6 +203,7 @@ class Libevent implements EventInterface
      */
     protected function timerCallback($_null1, $_null2, $timer_id)
     {
+        //多次触发 再次添加进去
         if ($this->_eventTimer[$timer_id][3] === self::EV_TIMER) {
             event_add($this->_eventTimer[$timer_id][2], $this->_eventTimer[$timer_id][4]);
         }
@@ -214,6 +216,7 @@ class Libevent implements EventInterface
             Worker::log($e);
             exit(250);
         }
+        //不是多次触发  从event_base_new中删除掉
         if (isset($this->_eventTimer[$timer_id]) && $this->_eventTimer[$timer_id][3] === self::EV_TIMER_ONCE) {
             $this->del($timer_id, self::EV_TIMER_ONCE);
         }
@@ -221,6 +224,7 @@ class Libevent implements EventInterface
 
     /**
      * {@inheritdoc}
+     * 删掉所有定时器事件
      */
     public function clearAllTimer()
     {
